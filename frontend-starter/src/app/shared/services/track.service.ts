@@ -26,4 +26,10 @@ export class TrackService {
       responseType: 'blob',
     });
   }
+
+  /** Supprime une piste audio (métadonnée et fichier physique) via DELETE /api/tracks/:id. */
+  delete(id: string) {
+    return this.http.delete<void>(`/api/tracks/${id}`);
+  }
 }
+
