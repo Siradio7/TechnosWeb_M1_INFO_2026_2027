@@ -19,7 +19,10 @@
         <button type="button" (click)="load()">Actualiser</button>
       </div>
       @if (loading()) {
-        <p>Chargement…</p>
+        <p>Chargement des pistes en cours…</p>
+      }
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
       }
       @for (track of tracks(); track track.id) {
         <div class="track">
@@ -30,13 +33,16 @@
           <button type="button" (click)="play(track)" [attr.aria-label]="'Lire ' + track.title">▶</button>
         </div>
       } @empty {
-        <p>Aucune piste.</p>
+        @if (!loading() && !error()) {
+          <p>Aucune piste dans votre bibliothèque.</p>
+        }
       }
       <div class="pager">
-        <button type="button" (click)="go(page() - 1)" [disabled]="page() === 1">Préc.</button>
+        <button type="button" (click)="go(page() - 1)" [disabled]="page() <= 1 || loading()">Précédent</button>
         <span>Page {{ page() }} / {{ pages() }}</span>
-        <button type="button" (click)="go(page() + 1)" [disabled]="page() === pages()">Suiv.</button>
+        <button type="button" (click)="go(page() + 1)" [disabled]="page() >= pages() || loading()">Suivant</button>
       </div>
+
       @if (audioUrl()) {
         <audio [src]="audioUrl()" controls autoplay></audio>
       }
