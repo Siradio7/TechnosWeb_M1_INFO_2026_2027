@@ -78,9 +78,9 @@ Ce document retrace les missions réalisées lors du TP1 (Architecture Authentif
 
 ---
 
-## Checkpoint DevTools Network (À compléter lors de la séance)
+## Checkpoint DevTools Network TP1
 
-Pour valider le TP, relever les traces réseau suivantes dans l'onglet **Network** (filtre Fetch/XHR) :
+Pour valider le TP1, relever les traces réseau suivantes dans l'onglet **Network** (filtre Fetch/XHR) :
 
 1. **Connexion réussie :**
    - Requête : `POST /api/auth/login`
@@ -92,6 +92,85 @@ Pour valider le TP, relever les traces réseau suivantes dans l'onglet **Network
    - En-tête présent : `Authorization: Bearer eyJ...`
    - Corps envoyé : `{"name":"NouveauNom"}`
    - Statut retourné : `200 OK`
-3. **Capture d'écran Network :**
-   *(Ajouter ici les captures d'écran des requêtes DevTools du binôme).*
+
+---
+
+# Rapport d'usage de l'IA - TP2
+
+Ce document retrace les missions réalisées lors du TP2 (Bibliothèque Upload et Lecture Audio) avec l'assistance de l'IA, conformément aux consignes pédagogiques de `SUJET_ETUDIANT_TP2.md`.
+
+---
+
+## Mission 2 — Bibliothèque Paginée
+
+* **Objectif :** Implémenter une bibliothèque audio paginée côté serveur avec Angular Signals et flux de contrôle natif (`@for`, `@empty`, `@if`).
+* **Prompt principal :** « on commence le tp2 » / implémentation de la pagination serveur.
+* **Fichiers modifiés :**
+  - `frontend-starter/src/app/components/tracks-page/tracks-page.ts` : ajout du Signal `error`, gestion défensive de la pagination dans `go(page)`.
+  - `frontend-starter/src/app/components/tracks-page/tracks-page.html` : boutons « Précédent » et « Suivant » désactivés aux bornes (`page() <= 1`, `page() >= pages()`) et pendant le chargement.
+* **Vérifications :**
+  - Chaque changement de page déclenche une requête `GET /api/tracks?page=X&limit=5`.
+  - L'état vide (`@empty`) s'affiche uniquement si la bibliothèque est vide hors temps de chargement.
+
+---
+
+## Mission 3 — Analyse, Amélioration de l'Upload et de la Lecture Audio
+
+* **Objectif :**
+  - Valider le fichier côté client avant envoi (taille $\le 25$ Mo, types MIME audio).
+  - Présenter les morceaux sous forme de cards responsives et accessibles avec métadonnées enrichies.
+  - Implémenter la lecture audio authentifiée par `Blob` et `ObjectURL` avec libération mémoire rigoureuse.
+  - Ajouter la suppression de morceaux (`DELETE /api/tracks/:id`).
+* **Fichiers modifiés :**
+  - `frontend-starter/src/app/shared/services/track.service.ts` : ajout de la méthode `delete(id)`.
+  - `frontend-starter/src/app/components/tracks-page/tracks-page.ts` :
+    - Contrôle de la taille maximale (25 Mo) et des formats autorisés (MPEG, WAV, OGG, M4A) dans `choose()`.
+    - Signaux d'upload : `uploading`, `uploadError`, `uploadSuccess`.
+    - Signaux de lecture : `currentTrack`, `audioUrl`, `audioLoading`, `audioError`.
+    - Révocation de l'`ObjectURL` (`URL.revokeObjectURL`) au changement de piste et à la destruction du composant via `DestroyRef.onDestroy()`.
+    - Méthode de suppression avec confirmation `deleteTrack(track)`.
+    - Fonctions de formatage lisible pour la taille (`formatSize`), la date (`formatDate`) et le format (`formatMime`).
+  - `frontend-starter/src/app/components/tracks-page/tracks-page.html` : refonte en cartes structurées avec badges, actions d'écoute/suppression, lecteur intégré et messages de retour.
+  - `frontend-starter/src/app/components/tracks-page/tracks-page.css` : styles complets pour les cards, le lecteur, le badge de format et l'état actif.
+* **Vérifications :**
+  - `npm run build` : compilation Angular réussie (code 0).
+  - Commits Git atomiques séparant la Mission 2 et la Mission 3.
+
+---
+
+## Réponses aux Questions d'Évaluation (TP2)
+
+### 1. Localisation des étapes clés dans le code
+* **Choix du fichier :** `TracksPageComponent.choose($event)` dans `tracks-page.ts`.
+* **Construction du `FormData` :** `TrackService.upload(file, title)` dans `track.service.ts`.
+* **Appel HTTP d'upload :** `this.http.post<Track>('/api/tracks', body)` dans `track.service.ts`.
+* **Récupération du `Blob` :** `TrackService.audio(id)` avec l'option `{ responseType: 'blob' }`.
+* **Création de l'`ObjectURL` :** `URL.createObjectURL(blob)` dans `TracksPageComponent.play()`.
+* **Affectation au lecteur audio :** `this.audioUrl.set(url)` dans `tracks-page.ts`, lié par property binding à `<audio [src]="audioUrl()">` dans `tracks-page.html`.
+* **Révocation de l'ancienne URL :** `this.revokeAudioUrl()` appelant `URL.revokeObjectURL(previous)` à chaque nouvelle lecture et lors du `destroyRef.onDestroy()`.
+
+### 2. Pourquoi une URL directement placée dans `<audio src="...">` ne reçoit pas automatiquement le header JWT ?
+Les éléments HTML multimédias natifs (`<audio>`, `<img>`, `<video>`) sont gérés directement par le sous-système de rendu du navigateur. Lorsqu'ils demandent une ressource via leur attribut `src`, ils n'utilisent pas le client HTTP d'Angular (`HttpClient`) et ne traversent donc **jamais** les intercepteurs Angular (`authInterceptor`). Par conséquent, aucun en-tête `Authorization: Bearer <token>` ne peut leur être injecté.
+Pour sécuriser l'accès, l'application doit :
+1. Télécharger les données binaires via `HttpClient` (qui injecte le JWT).
+2. Récupérer la réponse sous forme de `Blob` binaire en mémoire.
+3. Créer une URL interne au navigateur pointant sur ce Blob via `URL.createObjectURL(blob)`.
+4. Donner cette URL locale temporaire au lecteur audio.
+
+### 3. Pourquoi la validation frontend ne remplace jamais la validation backend ?
+* **Rôle du frontend :** Améliore l'expérience utilisateur (*UX*) en donnant un retour immédiat sans attendre un aller-retour réseau et en évitant d'envoyer inutilement 25 Mo sur le réseau si le format est invalide.
+* **Rôle du backend :** Assure la sécurité et l'intégrité du système. N'importe quel utilisateur ou attaquant peut contourner le code JavaScript d'Angular (via `curl`, Postman ou des outils d'inspection) pour envoyer directement des requêtes malveillantes. La validation côté serveur reste donc la seule garantie absolue.
+
+### 4. Questions sur la mémoire, le buffering et le streaming audio
+* **Le backend envoie-t-il le fichier entier en mémoire ou progressivement ?**
+  Le backend utilise `res.sendFile(audioPath)` ([backend/src/app.js:394](file:///Users/eclipse/IdeaProjects/TechnosWeb_M1_INFO_2026_2027/backend/src/app.js#L394)). En interne, cette méthode Express s'appuie sur les streams Node.js (`fs.createReadStream`). Le fichier est donc lu depuis le disque dur et acheminé par fragments (*chunks*) vers la réponse HTTP sans charger l'intégralité du fichier audio dans la mémoire vive (RAM) du serveur Node.js.
+* **Avec `HttpClient` et `responseType: "blob"`, quand le composant reçoit-il le fichier ?**
+  Le composant reçoit le fichier dans le callback `next(blob)` **uniquement lorsque l'intégralité du fichier a été reçue** par le navigateur et assemblée en un objet `Blob` monolithique dans la mémoire RAM du client.
+* **Si la bibliothèque contient 100 morceaux, les 100 fichiers audio sont-ils chargés en mémoire dès l'affichage de la liste ?**
+  **Non.** Le chargement de la bibliothèque via `TrackService.list()` n'interroge que l'endpoint de pagination `GET /api/tracks?page=...&limit=5` qui ne renvoie que des métadonnées JSON (titre, taille, date, format) pour 5 éléments. Aucun fichier audio binaire n'est transféré tant que l'utilisateur ne clique pas sur le bouton « Écouter » d'un morceau précis.
+* **Différence avec 100 éléments `<audio>` avec URL HTTP directe :**
+  Si 100 balises `<audio>` étaient créées avec des URLs HTTP directes, le navigateur tenterait d'ouvrir de multiples connexions simultanées pour précharger (*preload/buffer*) les métadonnées et les premières secondes de chaque fichier audio, saturant la bande passante réseau et la mémoire du navigateur.
+* **Pourquoi révoquer l'URL créée par `URL.createObjectURL` ?**
+  Chaque appel à `URL.createObjectURL(blob)` crée un lien interne dans la table mémoire du navigateur empêchant le ramasse-miettes (*Garbage Collector*) de libérer les octets du `Blob`. Si l'on ne révoque pas ces URLs via `URL.revokeObjectURL()`, chaque morceau écouté reste définitivement en mémoire vive jusqu'à la fermeture de l'onglet, causant une fuite de mémoire (*memory leak*) importante.
+
 
